@@ -43,6 +43,7 @@
     .where { font-size: 1.25rem; font-weight: 700; margin: 2px 0; }
     .titles { color: var(--muted); }
     .card.best .titles { color: var(--text); }
+    footer { margin-top: 32px; color: var(--muted); font-size: 0.8rem; }
   </style>
 </head>
 <body>
@@ -55,51 +56,13 @@
   </form>
   <p id="status" role="status"></p>
   <section id="results"></section>
+  <footer>
+    The search runs in your browser. The first visit downloads a search model (about 135 MB),
+    which your browser keeps for next time. This page shows only slide titles and page numbers;
+    the slides are based on <i>Computer Networking: A Top-Down Approach</i>, 8th edition, by
+    J.F. Kurose and K.W. Ross, &copy; 1996&ndash;2020, all rights reserved.
+  </footer>
 </main>
-<script>
-  const form = document.getElementById("form");
-  const input = document.getElementById("q");
-  const statusLine = document.getElementById("status");
-  const results = document.getElementById("results");
-
-  // Builds one result card. textContent (not innerHTML) keeps slide titles from being read as HTML.
-  function card(result, isBest) {
-    const box = document.createElement("div");
-    box.className = "card" + (isBest ? " best" : "");
-    const label = document.createElement("div");
-    label.className = "label";
-    label.textContent = isBest ? "Start reading" : "Also related";
-    const where = document.createElement("div");
-    where.className = "where";
-    where.textContent = result.chapter + ", p." + result.pages;
-    const titles = document.createElement("div");
-    titles.className = "titles";
-    titles.textContent = result.titles.length ? result.titles.join(" · ") : "(diagram slide, no title)";
-    box.append(label, where, titles);
-    return box;
-  }
-
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const query = input.value.trim();
-    if (!query) return;
-    results.replaceChildren();
-    statusLine.textContent = "Searching… (the first search after a pause can take a minute)";
-    try {
-      // Relative URL: works at the site root and behind a proxy.
-      const response = await fetch("find?q=" + encodeURIComponent(query));
-      if (!response.ok) throw new Error("HTTP " + response.status);
-      const data = await response.json();
-      if (data.results.length === 0) {
-        statusLine.textContent = "Not found in the slides.";
-        return;
-      }
-      statusLine.textContent = "";
-      data.results.forEach((result, i) => results.append(card(result, i === 0)));
-    } catch (error) {
-      statusLine.textContent = "Something went wrong: " + error.message;
-    }
-  });
-</script>
+<script type="module" src="app.js"></script>
 </body>
 </html>

@@ -1,93 +1,117 @@
 # netcentric-study-assistant
 
 Find **where** a topic is in your course slides. Type a topic or a question, in English or
-Thai, and get the chapter and page range to start reading.
+Thai, and get the chapter and page range to start reading. It runs entirely in the browser
+(no server, no API key) and also as a command line and a small REST API.
 
 ```
-> .\ask udp
+> udp
 Start reading: Chapter 3, p.24-29
   UDP: User Datagram Protocol · UDP: Transport Layer Actions
 Also related:
   Chapter 3, p.137      QUIC: Quick UDP Internet Connections
 
-> .\ask NAT ทำงานอย่างไร
+> NAT ทำงานอย่างไร
 Start reading: Chapter 4, p.64-68
   NAT: network address translation
 
-> .\ask pizza
+> pizza
 Not found in the slides.
 ```
 
-Everything runs locally: no API key, no GPU needed, no slide text leaves your computer.
-
 > **Course slides are copyrighted and are not in this repository.** Put your own PDFs in
-> `data/` (git-ignored). The index (`chroma_db/`) is git-ignored too, because it contains
-> the slide text.
+> `data/` (git-ignored). The local index (`chroma_db/`) is git-ignored too, because it contains
+> the slide text. The published web page contains **only slide titles, page numbers and
+> vectors**, never slide text.
 
-## Run it (Windows, PowerShell)
+## Use it
+
+**Web page (phone or computer).** Open the GitHub Pages site of this repository (setup below).
+The first visit downloads the search model (about 135 MB); the browser keeps it, so later
+visits are fast. Links like `...?q=udp` search straight away.
+
+**Command line (Windows, PowerShell):**
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 
 # 1. put your PDFs in data\  (another course: $env:DOCS_DIR = "other_folder")
-# 2. build the index once (the first run downloads a ~470 MB model into .cache\)
+# 2. build the local index once (the first run downloads the model into .cache\)
 .\.venv\Scripts\python.exe -m app.cli index
 
 # 3. search
-.\ask udp                  # one search (~10 s: most of it is loading the model)
+.\ask udp                  # one search
 .\ask                      # keep asking: the model loads once, then every search is instant
 ```
 
-Web page and REST API: `.\.venv\Scripts\python.exe -m uvicorn app.api:create_default_app --factory`,
-then open http://127.0.0.1:8000/ for a search box, or call `GET /find?q=udp` (docs at `/docs`).
+**REST API:** `.\.venv\Scripts\python.exe -m uvicorn app.api:create_default_app --factory`, then
+`GET http://127.0.0.1:8000/find?q=udp` (docs at `/docs`).
 
-To use it from a phone, deploy it as a private web app: see [DEPLOY.md](DEPLOY.md).
+## Publish the web page (free, permanent, no card)
+
+The page is plain files in `site/`, so GitHub Pages can host it.
+
+1. Build the data files from your slides (titles and vectors only) and commit them:
+   ```powershell
+   .\.venv\Scripts\python.exe -m app.cli export-site     # writes site\index\
+   git add site\index; git commit -m "Update slide index"; git push
+   ```
+2. In the repository: **Settings -> Pages -> Source: GitHub Actions**. The workflow
+   `.github/workflows/pages.yml` publishes `site/` on every push that changes it.
+
+Anyone with the link can open the page and see the slide titles. If the slides are not yours to
+share, keep the repository and the page private or do not publish `site/index/`.
 
 ## How it works
 
 ```
-index (once)   PDF ──▶ one Page per slide ──▶ vector ──▶ Chroma (chroma_db/)
-                       page number + title    multilingual-e5-small
+build (once, on your PC)
+  PDF ──▶ one Page per slide ──▶ vector ──▶ Chroma (chroma_db/)      for the CLI and the API
+          number + title        (ONNX model)  └─▶ site/index/ (vectors.bin, pages.json,
+                                                    config.json)       for the web page
 
-find           query ──▶ vector ──▶ 15 closest pages ──▶ drop pages below MIN_SCORE
-                 ──▶ merge neighbouring pages into ranges  (p.43, 44, 45, 46 → p.43-46)
-                 ──▶ best range + other ranges whose title shares a word with the query
+search (the same steps in Python and in the browser)
+  query ──▶ vector ──▶ 15 closest pages ──▶ drop pages below MIN_SCORE
+        ──▶ merge neighbouring pages into ranges  (p.43, 44, 45, 46 → p.43-46)
+        ──▶ best range + other ranges whose title shares a word with the query
 ```
 
 | file | job |
 |---|---|
 | `app/ingest.py` | read PDFs: text, page number and title of every slide |
-| `app/embed.py` | text → vector (real model, and a fake one for tests) |
+| `app/embed.py` | text → vector with the quantized ONNX model (and a fake one for tests) |
 | `app/store.py` | save and search vectors in Chroma |
 | `app/search.py` | the finder: closest pages → ranges → results |
-| `app/cli.py` | `index` and `find` commands, output format |
-| `app/api.py` | REST API (`/find`, `/health`) and the page below |
-| `app/static/index.html` | one-page search form (plain HTML + JS, no framework) |
-| `Dockerfile` | packages the app for hosting (see DEPLOY.md) |
+| `app/export_site.py` | write the index as three small files for the browser |
+| `app/cli.py`, `app/api.py` | command line and REST API |
 | `app/config.py` | settings from environment variables |
+| `site/search.js` | the same finder in JavaScript (a port of `search.py`) |
+| `site/app.js`, `site/index.html` | the page: loads the index and the model, shows results |
 
 Each design choice was measured, not guessed:
 
 - **Whole pages, not chunks.** Slides are short (about 450 characters). An earlier version
-  split them into chunks of 250-2000 characters; smaller chunks never helped (hit@5: 70%,
-  65%, 80%, 80% for 250, 500, 1000, 2000), so a page is the unit and every result is a page.
+  split them into chunks of 250-2000 characters; smaller chunks never helped, so a page is the
+  unit and every result is a page.
 - **Titles from the largest font.** The first line of a slide is often a label inside a
-  diagram. The largest text gave a sensible title on 620 of 625 pages (checked by reading
-  the full list); the other 5 are diagram-only slides, shown as "(diagram slide, no title)".
+  diagram. The largest text gave a sensible title on 620 of 625 pages (checked by reading the
+  full list); the other 5 are diagram-only slides ("(diagram slide, no title)").
 - **Neighbouring pages merged into ranges.** A topic usually spans several slides, and one
   range is one place to read.
-- **Pages with fewer than 8 words are skipped.** Dividers such as "Additional Chapter 5
-  slides" are almost empty, so they matched random queries like "pizza".
+- **Pages with fewer than 8 words are skipped.** Dividers such as "Additional Chapter 5 slides"
+  are almost empty, so they matched random queries like "pizza".
 - **"Also related" only if the title shares a word with the query.** Without this rule most
-  extra lines were unrelated pages with almost the same score. On 55 queries it cut the
-  unrelated lines from 81 to 38, while hit@3 for topics went from 100% to 97%.
-- **Vector search only.** A throwaway experiment (not in this repo) also tried keyword
-  search (BM25) and a mix of both: no overall gain on the same queries, so the simplest
-  method stayed.
-- **No LLM.** An earlier version wrote answers with a local LLM (Ollama). It worked, but
-  for the real use, "where do I start reading?", a page list is faster and cannot invent
-  content.
+  extra lines were unrelated pages with almost the same score.
+- **One model for Python and the browser.** The quantized ONNX version of
+  multilingual-e5-small (118 MB) searches as well as the full PyTorch one (same hit rates)
+  and runs in a browser through transformers.js. Using it everywhere also removed PyTorch
+  from the project (the install is about 1 GB smaller).
+- **The JavaScript finder is checked against the Python one.** On all 65 evaluation queries,
+  the same query vectors give identical results in both (65 of 65), and `node --test` runs
+  unit tests of `search.js` in CI.
+- **No LLM.** An earlier version wrote answers with a local LLM. For the real use, "where do I
+  start reading?", a page list is faster and cannot invent content.
 
 ## Evaluation
 
@@ -97,38 +121,46 @@ Each design choice was measured, not guessed:
 A query is a *hit at k* if an expected page is inside one of the first k results; the finder
 shows up to 3, so hit@3 means "the right page is on the screen".
 
-Run `python -m eval.run_eval --out eval/results.md` (uses the index you built):
+Python (`python -m eval.run_eval --out eval/results.md`, uses the index you built):
 
 | queries | n | hit@1 | hit@3 |
 |---|---|---|---|
-| topic | 35 | 91% | 97% |
-| question | 20 | 60% | 70% |
+| topic | 35 | 89% | 94% |
+| question | 20 | 70% | 75% |
 | off-topic | 10 | 70% | 70% |
-| all | 65 | 78% | 85% |
+| all | 65 | 80% | 85% |
+
+The same 65 queries through the real web page (desktop Chrome, driven by a script): **identical
+results, 80% hit@1 / 85% hit@3 overall**, topics 89% / 94%, questions 70% / 75%, off-topic 70% / 70%.
 
 How to read it:
-- **Type the key term.** Short topics find the right place first 91% of the time; long
-  questions only 60%, because their extra words pull in other slides.
-- **Limits:** the queries were written by the author of this repo from the slide titles,
-  not taken from official exercises, and `MIN_SCORE` and the "also related" rule were tuned
-  on these same queries, so the numbers are optimistic. One query is worth 3 (topic),
-  5 (question) or 10 (off-topic) percentage points.
+- **Type the key term.** Short topics are the most reliable; long questions are weaker because
+  their extra words pull in other slides.
+- **Limits:** the queries were written by the author of this repo from the slide titles, not
+  taken from official exercises, and `MIN_SCORE` and the "also related" rule were tuned on these
+  same queries, so the numbers are optimistic. One query is worth 3 (topic), 5 (question) or
+  10 (off-topic) percentage points.
 
 ## Tests and lint
 
 ```powershell
 .\.venv\Scripts\python.exe -m ruff check .
 .\.venv\Scripts\python.exe -m pytest
+node --test site/search.test.mjs
 ```
 
 Tests build tiny PDFs on the fly and use a fake embedder: no network, no model, no slides.
-GitHub Actions runs both on every push (`.github/workflows/ci.yml`).
+GitHub Actions runs all three on every push (`.github/workflows/ci.yml`).
 
 ## Known limitations
-- Diagrams are images or scattered labels, so a topic that only appears inside a figure
-  may be missed.
+- The web page was tested in desktop Chrome (a real browser driven from a script), **not yet on
+  a phone**. The first visit needs about 135 MB of download and some memory for the model.
+- Diagrams are images or scattered labels, so a topic that only appears inside a figure may
+  be missed.
 - Thai queries find the best range well; "also related" lines need an English term in the
   query (for example "NAT" in "NAT ทำงานอย่างไร").
-- `MIN_SCORE` (0.81) separates on-topic from off-topic queries only roughly: 3 of the 10
+- `MIN_SCORE` (0.82) separates on-topic from off-topic queries only roughly: 3 of the 10
   off-topic probes still return a page. Scores depend on the model; re-measure it if you
   change `EMBED_MODEL`.
+- The browser and Python compute vectors with different tokenizer code, so results can differ
+  slightly (for example one extra page at the edge of a range).

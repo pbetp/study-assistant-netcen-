@@ -1,0 +1,10 @@
+{
+  "model": "Xenova/multilingual-e5-small",
+  "dtype": "q8",
+  "query_prefix": "query: ",
+  "dim": 384,
+  "count": 625,
+  "min_score": 0.82,
+  "candidates": 15,
+  "max_results": 3
+}

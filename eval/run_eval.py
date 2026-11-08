@@ -20,7 +20,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from app.config import Settings
-from app.embed import SentenceTransformerEmbedder
+from app.embed import OnnxEmbedder
 from app.search import Result, find_pages
 from app.store import VectorStore
 
@@ -75,7 +75,7 @@ def main() -> None:
     args = parser.parse_args()
 
     settings = Settings.from_env()
-    embedder = SentenceTransformerEmbedder(settings.embed_model)
+    embedder = OnnxEmbedder(settings.embed_model)
     store = VectorStore(settings.store_dir)
 
     def find(query: str) -> list[Result]:

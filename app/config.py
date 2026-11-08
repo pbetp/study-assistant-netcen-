@@ -13,7 +13,7 @@ from pathlib import Path
 class Settings:
     docs_dir: Path  # folder with PDFs; change it to index another course
     store_dir: Path  # where the vector store is saved
-    embed_model: str  # sentence-transformers model name
+    embed_model: str  # Hugging Face repo with the ONNX model files
     min_score: float  # below this similarity a page is "not about the query"
 
     @classmethod
@@ -22,8 +22,8 @@ class Settings:
         return cls(
             docs_dir=Path(env("DOCS_DIR", "data")),
             store_dir=Path(env("VECTOR_STORE_DIR", "chroma_db")),
-            embed_model=env("EMBED_MODEL", "intfloat/multilingual-e5-small"),
-            # 0.81 was measured for multilingual-e5-small on these slides (see README).
+            embed_model=env("EMBED_MODEL", "Xenova/multilingual-e5-small"),
+            # 0.82 was measured for this quantized model on these slides (see README).
             # Scores are NOT comparable between models: re-measure if you change EMBED_MODEL.
-            min_score=float(env("MIN_SCORE", "0.81")),
+            min_score=float(env("MIN_SCORE", "0.82")),
         )

@@ -1,26 +1,21 @@
 """REST API.
 
-GET /            ->  a one-page search form (static/index.html) for use in a browser
 GET /find?q=udp  ->  {"query": "udp", "results": [{"chapter", "file", "pages", "first_page",
                                                      "last_page", "titles"}, ...]}
 GET /health      ->  {"status": "ok", "pages": <number indexed>}
 
 Thin layer only: the real logic lives in search.py so it is easy to test.
+The web page for phones is separate and needs no server: see site/.
 Run:  uvicorn app.api:create_default_app --factory
 """
 
-from pathlib import Path
-
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from app.config import Settings
-from app.embed import Embedder, SentenceTransformerEmbedder
+from app.embed import Embedder, OnnxEmbedder
 from app.search import find_pages
 from app.store import VectorStore
-
-STATIC_DIR = Path(__file__).parent / "static"
 
 
 class ResultOut(BaseModel):
@@ -40,10 +35,6 @@ class FindResponse(BaseModel):
 def create_app(embedder: Embedder, store: VectorStore, min_score: float = 0.0) -> FastAPI:
     """Build the app from its parts. Tests pass fakes here; production passes real ones."""
     app = FastAPI(title="Netcentric Slide Finder")
-
-    @app.get("/", include_in_schema=False)
-    def home() -> FileResponse:
-        return FileResponse(STATIC_DIR / "index.html")
 
     @app.get("/health")
     def health() -> dict:
@@ -81,7 +72,7 @@ def create_default_app() -> FastAPI:
     """Production wiring from environment variables (loads the real embedding model)."""
     settings = Settings.from_env()
     return create_app(
-        embedder=SentenceTransformerEmbedder(settings.embed_model),
+        embedder=OnnxEmbedder(settings.embed_model),
         store=VectorStore(settings.store_dir),
         min_score=settings.min_score,
     )

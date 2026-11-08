@@ -10,14 +10,6 @@ def client(embedder, store):
     return TestClient(create_app(embedder, store))
 
 
-def test_home_page_is_the_search_form(client):
-    response = client.get("/")
-
-    assert response.status_code == 200
-    assert response.headers["content-type"].startswith("text/html")
-    assert 'id="q"' in response.text and "find?q=" in response.text
-
-
 def test_health_reports_page_count(client):
     assert client.get("/health").json() == {"status": "ok", "pages": 5}
 
