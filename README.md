@@ -4,6 +4,9 @@ Find **where** a topic is in your course slides. Type a topic or a question, in 
 Thai, and get the chapter and page range to start reading. It runs entirely in the browser
 (no server, no API key) and also as a command line and a small REST API.
 
+**Live demo: https://pbetp.github.io/study-assistant-netcen-/** (the first visit downloads a
+search model of about 135 MB; the page shows only slide titles and page numbers).
+
 ```
 > udp
 Start reading: Chapter 3, p.24-29
@@ -25,9 +28,10 @@ Not found in the slides.
 
 ## Use it
 
-**Web page (phone or computer).** Open the GitHub Pages site of this repository (setup below).
-The first visit downloads the search model (about 135 MB); the browser keeps it, so later
-visits are fast. Links like `...?q=udp` search straight away.
+**Web page (phone or computer).** Open the [live demo](https://pbetp.github.io/study-assistant-netcen-/)
+(hosted free on GitHub Pages; to publish your own copy see below). The first visit downloads
+the search model (about 135 MB); the browser keeps it, so later visits are fast. Links like
+`...?q=udp` search straight away.
 
 **Command line (Windows, PowerShell):**
 
