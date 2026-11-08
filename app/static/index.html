@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Slide Finder</title>
+  <style>
+    :root {
+      --bg: #f6f7f9; --card: #ffffff; --text: #1b1f24; --muted: #5b6570;
+      --line: #dde1e6; --accent: #2457d6; --accent-soft: #e8eefc;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #14171b; --card: #1d2228; --text: #e8ebef; --muted: #98a2ad;
+        --line: #2e353d; --accent: #7aa2ff; --accent-soft: #232c40;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font: 16px/1.5 system-ui, -apple-system, "Segoe UI", "Noto Sans Thai", sans-serif;
+    }
+    main { max-width: 640px; margin: 0 auto; padding: 24px 16px 48px; }
+    h1 { font-size: 1.4rem; margin: 0 0 4px; }
+    .hint { color: var(--muted); margin: 0 0 16px; font-size: 0.95rem; }
+    form { display: flex; gap: 8px; }
+    input {
+      flex: 1; min-width: 0; padding: 12px 14px; font: inherit; color: var(--text);
+      background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    }
+    button {
+      padding: 12px 18px; font: inherit; font-weight: 600; color: #fff; background: var(--accent);
+      border: 0; border-radius: 10px; cursor: pointer;
+    }
+    input:focus-visible, button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+    #status { color: var(--muted); margin: 16px 0 0; min-height: 1.5em; }
+    .card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+      padding: 14px 16px; margin-top: 12px;
+    }
+    .card.best { border-color: var(--accent); background: var(--accent-soft); }
+    .label { font-size: 0.8rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+    .where { font-size: 1.25rem; font-weight: 700; margin: 2px 0; }
+    .titles { color: var(--muted); }
+    .card.best .titles { color: var(--text); }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Slide Finder</h1>
+  <p class="hint">Type a topic or a question (English or Thai). You get the chapter and pages to read.</p>
+  <form id="form">
+    <input id="q" type="search" placeholder="e.g. udp, slow start, ที่อยู่ MAC" autocomplete="off" aria-label="Topic or question">
+    <button type="submit">Find</button>
+  </form>
+  <p id="status" role="status"></p>
+  <section id="results"></section>
+</main>
+<script>
+  const form = document.getElementById("form");
+  const input = document.getElementById("q");
+  const statusLine = document.getElementById("status");
+  const results = document.getElementById("results");
+
+  // Builds one result card. textContent (not innerHTML) keeps slide titles from being read as HTML.
+  function card(result, isBest) {
+    const box = document.createElement("div");
+    box.className = "card" + (isBest ? " best" : "");
+    const label = document.createElement("div");
+    label.className = "label";
+    label.textContent = isBest ? "Start reading" : "Also related";
+    const where = document.createElement("div");
+    where.className = "where";
+    where.textContent = result.chapter + ", p." + result.pages;
+    const titles = document.createElement("div");
+    titles.className = "titles";
+    titles.textContent = result.titles.length ? result.titles.join(" · ") : "(diagram slide, no title)";
+    box.append(label, where, titles);
+    return box;
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const query = input.value.trim();
+    if (!query) return;
+    results.replaceChildren();
+    statusLine.textContent = "Searching… (the first search after a pause can take a minute)";
+    try {
+      // Relative URL: works at the site root and behind a proxy.
+      const response = await fetch("find?q=" + encodeURIComponent(query));
+      if (!response.ok) throw new Error("HTTP " + response.status);
+      const data = await response.json();
+      if (data.results.length === 0) {
+        statusLine.textContent = "Not found in the slides.";
+        return;
+      }
+      statusLine.textContent = "";
+      data.results.forEach((result, i) => results.append(card(result, i === 0)));
+    } catch (error) {
+      statusLine.textContent = "Something went wrong: " + error.message;
+    }
+  });
+</script>
+</body>
+</html>

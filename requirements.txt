@@ -1,0 +1,6 @@
+# Runtime dependencies (lower bounds = versions this project was built and tested with).
+pypdf>=7.0                    # read text and titles from PDF pages
+sentence-transformers>=6.2    # the embedding model (pulls in PyTorch)
+chromadb>=1.5                 # vector store
+fastapi>=0.162                # REST API
+uvicorn>=0.54                 # server that runs the API

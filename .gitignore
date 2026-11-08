@@ -1,0 +1,33 @@
+# ---- Copyrighted course material: NEVER commit ----
+# Your PDF slides live here. Keep this line at the top.
+data/
+
+# ---- Vector store ----
+# The index contains the slide text, so it is derived from copyrighted
+# material and must not be committed either.
+chroma_db/
+*.faiss
+*.pkl
+
+# ---- Secrets ----
+# API keys go in .env (local only). .env.example is safe to commit.
+.env
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ---- Tool caches ----
+.pytest_cache/
+.ruff_cache/
+
+# ---- Editor / OS ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Model downloads (embedding model cache)
+.cache/

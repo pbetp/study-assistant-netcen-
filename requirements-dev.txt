@@ -1,0 +1,5 @@
+# Tools for development and CI.
+-r requirements.txt
+pytest>=9.0
+ruff>=0.17
+httpx>=0.28    # needed by FastAPI's TestClient

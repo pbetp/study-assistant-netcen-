@@ -1,0 +1,10 @@
+# Keep the image small and keep the slides out of it.
+.git
+.venv
+.cache
+data
+tests
+eval
+__pycache__
+.pytest_cache
+.ruff_cache

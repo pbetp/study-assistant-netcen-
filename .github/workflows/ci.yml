@@ -1,0 +1,20 @@
+# Runs on every push and pull request: lint, then tests.
+# Tests are fully offline (fake embedder), so no model download or API key is needed.
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      # The CPU-only PyTorch index keeps the install small (no GPU libraries needed in CI).
+      - run: pip install --extra-index-url https://download.pytorch.org/whl/cpu -r requirements-dev.txt
+      - run: ruff check .
+      - run: pytest
