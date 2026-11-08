@@ -20,9 +20,8 @@ Not found in the slides.
 ```
 
 > **Course slides are copyrighted and are not in this repository.** Put your own PDFs in
-> `data/` (git-ignored). The local index (`chroma_db/`) is git-ignored too, because it contains
-> the slide text. The published web page contains **only slide titles, page numbers and
-> vectors**, never slide text.
+> `data/` (git-ignored). The index (`site/index/`) contains **only slide titles, page numbers
+> and vectors**, never slide text.
 
 ## Use it
 
@@ -37,7 +36,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 
 # 1. put your PDFs in data\  (another course: $env:DOCS_DIR = "other_folder")
-# 2. build the local index once (the first run downloads the model into .cache\)
+# 2. build the index once (the first run downloads the model into .cache\)
 .\.venv\Scripts\python.exe -m app.cli index
 
 # 3. search
@@ -48,13 +47,15 @@ python -m venv .venv
 **REST API:** `.\.venv\Scripts\python.exe -m uvicorn app.api:create_default_app --factory`, then
 `GET http://127.0.0.1:8000/find?q=udp` (docs at `/docs`).
 
+Settings are environment variables with defaults (see `app/config.py` and `.env.example`):
+`DOCS_DIR`, `INDEX_DIR`, `EMBED_MODEL`.
+
 ## Publish the web page (free, permanent, no card)
 
 The page is plain files in `site/`, so GitHub Pages can host it.
 
-1. Build the data files from your slides (titles and vectors only) and commit them:
+1. Build the index from your slides, then commit it (`app.cli index` writes `site\index\`):
    ```powershell
-   .\.venv\Scripts\python.exe -m app.cli export-site     # writes site\index\
    git add site\index; git commit -m "Update slide index"; git push
    ```
 2. In the repository: **Settings -> Pages -> Source: GitHub Actions**. The workflow
@@ -66,31 +67,35 @@ share, keep the repository and the page private or do not publish `site/index/`.
 ## How it works
 
 ```
-build (once, on your PC)
-  PDF ──▶ one Page per slide ──▶ vector ──▶ Chroma (chroma_db/)      for the CLI and the API
-          number + title        (ONNX model)  └─▶ site/index/ (vectors.bin, pages.json,
-                                                    config.json)       for the web page
+index (once, on your PC)
+  PDF ──▶ one Page per slide ──▶ vector ──▶ site/index/  vectors.bin  pages.json  config.json
+          chapter, number, title  (ONNX model)            └──── read by Python AND by the web page
 
 search (the same steps in Python and in the browser)
-  query ──▶ vector ──▶ 15 closest pages ──▶ drop pages below MIN_SCORE
+  query ──▶ vector ──▶ compare with every page vector ──▶ 15 closest pages
+        ──▶ drop pages below MIN_SCORE
         ──▶ merge neighbouring pages into ranges  (p.43, 44, 45, 46 → p.43-46)
         ──▶ best range + other ranges whose title shares a word with the query
 ```
 
 | file | job |
 |---|---|
-| `app/ingest.py` | read PDFs: text, page number and title of every slide |
+| `app/ingest.py` | read PDFs: chapter, page number, title and text of every slide |
 | `app/embed.py` | text → vector with the quantized ONNX model (and a fake one for tests) |
-| `app/store.py` | save and search vectors in Chroma |
+| `app/index.py` | the index: save it to / load it from 3 files, search it |
 | `app/search.py` | the finder: closest pages → ranges → results |
-| `app/export_site.py` | write the index as three small files for the browser |
+| `app/config.py` | settings from environment variables, and the tuned search values |
 | `app/cli.py`, `app/api.py` | command line and REST API |
-| `app/config.py` | settings from environment variables |
 | `site/search.js` | the same finder in JavaScript (a port of `search.py`) |
 | `site/app.js`, `site/index.html` | the page: loads the index and the model, shows results |
 
 Each design choice was measured, not guessed:
 
+- **No vector database.** There are only 625 vectors (1 MB). Comparing the query with all of
+  them and sorting takes 0.03 ms (measured; 100,000 vectors would still take 8 ms), so the
+  index is a plain matrix saved in a file. A vector database such as Chroma would matter at
+  hundreds of thousands of vectors. An earlier version used Chroma; removing it dropped 52
+  packages (217 MB) and let Python and the web page share one index.
 - **Whole pages, not chunks.** Slides are short (about 450 characters). An earlier version
   split them into chunks of 250-2000 characters; smaller chunks never helped, so a page is the
   unit and every result is a page.
@@ -106,7 +111,7 @@ Each design choice was measured, not guessed:
 - **One model for Python and the browser.** The quantized ONNX version of
   multilingual-e5-small (118 MB) searches as well as the full PyTorch one (same hit rates)
   and runs in a browser through transformers.js. Using it everywhere also removed PyTorch
-  from the project (the install is about 1 GB smaller).
+  from the project.
 - **The JavaScript finder is checked against the Python one.** On all 65 evaluation queries,
   the same query vectors give identical results in both (65 of 65), and `node --test` runs
   unit tests of `search.js` in CI.
@@ -115,7 +120,7 @@ Each design choice was measured, not guessed:
 
 ## Evaluation
 
-`eval/questions.json` has 65 queries, each with the file and page(s) that answer it:
+`eval/questions.json` has 65 queries, each with the chapter and page(s) that answer it:
 35 short **topics** (what you would type, including 5 in Thai), 20 full **questions**, and
 10 **off-topic** queries that are correct only if the finder says "not found".
 A query is a *hit at k* if an expected page is inside one of the first k results; the finder
@@ -154,7 +159,8 @@ GitHub Actions runs all three on every push (`.github/workflows/ci.yml`).
 
 ## Known limitations
 - The web page was tested in desktop Chrome (a real browser driven from a script), **not yet on
-  a phone**. The first visit needs about 135 MB of download and some memory for the model.
+  a phone**. The first visit needs about 135 MB of download, and the page used roughly 800 MB of
+  memory in Chrome (measured), which a small phone may not have.
 - Diagrams are images or scattered labels, so a topic that only appears inside a figure may
   be missed.
 - Thai queries find the best range well; "also related" lines need an English term in the

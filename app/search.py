@@ -5,31 +5,26 @@
 
 Example: the closest pages for "ARP" are 46, 44, 45, 43 and 98 of Chapter 6.
 Merged, that is two places to read: p.43-46 and p.98 ("A day in the life... ARP").
+site/search.js is the same finder in JavaScript; keep the two in step.
 """
 
 import re
 from dataclasses import dataclass
-from pathlib import Path
 
+from app.config import CANDIDATE_PAGES, MAX_RESULTS, MIN_SCORE
 from app.embed import Embedder
-from app.store import Hit, VectorStore
+from app.index import Hit, Index
 
-CANDIDATE_PAGES = 15  # how many close pages to look at before merging them into ranges
-MAX_RESULTS = 3  # the best range ("start reading here") + up to 2 more
 STOPWORDS = {"the", "and", "for", "how", "does", "what", "why", "which", "when", "with", "from"}
 
 
 @dataclass(frozen=True)
 class Result:
-    source: str  # PDF file name
+    chapter: str  # e.g. "Chapter 3"
     first_page: int
     last_page: int
     titles: list[str]  # distinct slide titles in this range, in page order
     score: float  # similarity of the best page in the range
-
-    @property
-    def chapter(self) -> str:
-        return display_name(self.source)
 
     @property
     def pages(self) -> str:
@@ -41,12 +36,12 @@ class Result:
 def find_pages(
     query: str,
     embedder: Embedder,
-    store: VectorStore,
-    min_score: float = 0.0,
+    index: Index,
+    min_score: float = MIN_SCORE,
     max_results: int = MAX_RESULTS,
 ) -> list[Result]:
     """Best places to read about `query`, best first. Empty list = not in the slides."""
-    hits = store.search(embedder.embed_query(query), CANDIDATE_PAGES)
+    hits = index.search(embedder.embed_query(query), CANDIDATE_PAGES)
     # Pages below min_score are too far from the query to be about it.
     hits = [h for h in hits if h.score >= min_score]
     ranges = merge_neighbours(hits)
@@ -73,21 +68,21 @@ def keywords(text: str) -> set[str]:
 
 
 def merge_neighbours(hits: list[Hit]) -> list[Result]:
-    """Turn pages that follow each other in the same file into one range.
+    """Turn pages that follow each other in the same chapter into one range.
 
     A range is as good as its best page, so ranges are sorted by their best score.
     """
     groups: list[list[Hit]] = []
-    for hit in sorted(hits, key=lambda h: (h.page.source, h.page.page)):
+    for hit in sorted(hits, key=lambda h: (h.page.chapter, h.page.page)):
         previous = groups[-1][-1].page if groups else None
-        if previous and previous.source == hit.page.source and hit.page.page == previous.page + 1:
+        if previous and previous.chapter == hit.page.chapter and hit.page.page == previous.page + 1:
             groups[-1].append(hit)
         else:
             groups.append([hit])
 
     results = [
         Result(
-            source=group[0].page.source,
+            chapter=group[0].page.chapter,
             first_page=group[0].page.page,
             last_page=group[-1].page.page,
             # dict.fromkeys removes repeated titles but keeps their order
@@ -97,13 +92,3 @@ def merge_neighbours(hits: list[Hit]) -> list[Result]:
         for group in groups
     ]
     return sorted(results, key=lambda r: r.score, reverse=True)
-
-
-def display_name(source: str) -> str:
-    """Short name for a file: 'Chapter_3_(pdf)-1045785-17255919550481.pdf' -> 'Chapter 3'.
-
-    The course website adds '_(pdf)-<numbers>' to every download; other names are kept.
-    """
-    stem = Path(source).stem
-    short = re.split(r"[_\s-]*\(pdf\)", stem)[0].replace("_", " ").strip()
-    return short or stem

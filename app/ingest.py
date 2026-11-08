@@ -1,4 +1,4 @@
-"""Read PDF slides: one `Page` per slide, with its page number and title.
+"""Read PDF slides: one `Page` per slide, with its chapter, page number and title.
 
 The whole page is the search unit. Slides are short (about 450 characters on average),
 so splitting them into smaller chunks did not improve search (see README), and keeping
@@ -20,15 +20,20 @@ MIN_WORDS = 8
 
 @dataclass(frozen=True)
 class Page:
-    source: str  # PDF file name, e.g. "Chapter_1.pdf"
+    chapter: str  # short name of the PDF, e.g. "Chapter 3"
     page: int  # 1-based, same number you see in the PDF viewer
     title: str  # slide title, "" for a diagram-only slide with no clear title
-    text: str
+    text: str  # only used to build the index; it is never saved in it
 
-    @property
-    def id(self) -> str:
-        """Unique, stable id, so re-indexing overwrites instead of duplicating."""
-        return f"{self.source}|{self.page}"
+
+def chapter_name(file_name: str) -> str:
+    """Short name shown to the user: 'Chapter_3_(pdf)-1045785-17255919550481.pdf' -> 'Chapter 3'.
+
+    The course website adds '_(pdf)-<numbers>' to every download; other names are kept as they are.
+    """
+    stem = Path(file_name).stem
+    short = re.split(r"[_\s-]*\(pdf\)", stem)[0].replace("_", " ").strip()
+    return short or stem
 
 
 def read_page(pdf_page) -> tuple[str, str, float]:
@@ -71,7 +76,7 @@ def extract_pages(pdf_path: Path) -> list[Page]:
     usual_title_size = statistics.median(size for *_, size in rows) if rows else 0.0
     return [
         Page(
-            source=pdf_path.name,
+            chapter=chapter_name(pdf_path.name),
             page=number,
             title=title if size >= 0.75 * usual_title_size else "",
             text=text,
@@ -86,6 +91,11 @@ def load_documents(docs_dir: Path) -> list[Page]:
         raise FileNotFoundError(f"Documents folder not found: {docs_dir}")
 
     pages = []
+    files = {}  # short chapter name -> the PDF it came from
     for pdf_path in sorted(docs_dir.glob("*.pdf")):
+        name = chapter_name(pdf_path.name)
+        # Pages are told apart by chapter name and page number, so two PDFs must not share a name.
+        if files.setdefault(name, pdf_path.name) != pdf_path.name:
+            raise ValueError(f"{files[name]} and {pdf_path.name} would both be called '{name}'")
         pages.extend(extract_pages(pdf_path))
     return pages

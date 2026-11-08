@@ -16,7 +16,7 @@ async function fetchOk(url) {
   return response;
 }
 
-// The three index files written by `python -m app.cli export-site`.
+// The three index files written by `python -m app.cli index` (the CLI reads the same files).
 async function loadIndex() {
   const [config, data, buffer] = await Promise.all([
     fetchOk("index/config.json").then((r) => r.json()),

@@ -1,28 +1,28 @@
 from app.search import Result
 from eval.run_eval import evaluate, format_table, is_hit, load_questions
 
-QUESTION = {"kind": "topic", "question": "q", "source": "Chapter_2", "pages": [21, 25]}
-OFF_TOPIC = {"kind": "off-topic", "question": "pizza", "source": "", "pages": []}
+QUESTION = {"kind": "topic", "question": "q", "chapter": "Chapter 2", "pages": [21, 25]}
+OFF_TOPIC = {"kind": "off-topic", "question": "pizza", "chapter": "", "pages": []}
 
 
-def result(source, first, last):
-    return Result(source, first, last, [], 0.9)
+def result(chapter, first, last):
+    return Result(chapter, first, last, [], 0.9)
 
 
 def test_hit_when_an_expected_page_is_inside_a_range():
-    assert is_hit(QUESTION, [result("Chapter_2_(pdf).pdf", 24, 26)])  # 25 is inside 24-26
-    assert not is_hit(QUESTION, [result("Chapter_3_(pdf).pdf", 25, 25)])  # right page, wrong file
-    assert not is_hit(QUESTION, [result("Chapter_2_(pdf).pdf", 26, 30)])  # right file, wrong pages
+    assert is_hit(QUESTION, [result("Chapter 2", 24, 26)])  # 25 is inside 24-26
+    assert not is_hit(QUESTION, [result("Chapter 3", 25, 25)])  # right page, wrong chapter
+    assert not is_hit(QUESTION, [result("Chapter 2", 26, 30)])  # right chapter, wrong pages
 
 
 def test_off_topic_is_correct_only_when_nothing_is_found():
     assert is_hit(OFF_TOPIC, [])
-    assert not is_hit(OFF_TOPIC, [result("Chapter_1.pdf", 1, 1)])
+    assert not is_hit(OFF_TOPIC, [result("Chapter 1", 1, 1)])
 
 
 def test_evaluate_counts_hits_per_kind_and_k():
     answers = {
-        "q": [result("Chapter_2.pdf", 99, 99), result("Chapter_2.pdf", 21, 21)],  # hit at rank 2
+        "q": [result("Chapter 2", 99, 99), result("Chapter 2", 21, 21)],  # hit at rank 2
         "pizza": [],
     }
 
@@ -46,5 +46,5 @@ def test_shipped_questions_are_well_formed():
         if q["kind"] == "off-topic":
             assert q["pages"] == []
         else:
-            assert q["source"].startswith("Chapter_")
+            assert q["chapter"].startswith("Chapter ")
             assert q["pages"] and all(isinstance(p, int) and p >= 1 for p in q["pages"])

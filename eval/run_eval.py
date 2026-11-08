@@ -1,6 +1,6 @@
 """Measure how often the finder points at the right slides.
 
-questions.json has three kinds of queries, each with the file and the pages that answer it:
+questions.json has three kinds of queries, each with the chapter and the pages that answer it:
 - "topic":     short, like what you would type ("udp", "slow start", "ที่อยู่ MAC")
 - "question":  a full sentence
 - "off-topic": not in the slides; correct only if the finder returns nothing
@@ -19,10 +19,10 @@ from collections import defaultdict
 from collections.abc import Callable
 from pathlib import Path
 
-from app.config import Settings
+from app.config import MIN_SCORE, Settings
 from app.embed import OnnxEmbedder
+from app.index import Index
 from app.search import Result, find_pages
-from app.store import VectorStore
 
 QUESTIONS_FILE = Path(__file__).parent / "questions.json"
 KS = (1, 3)
@@ -37,7 +37,7 @@ def is_hit(question: dict, results: list[Result]) -> bool:
     if not question["pages"]:  # off-topic: the right answer is "not found"
         return not results
     return any(
-        r.source.startswith(question["source"]) and r.first_page <= page <= r.last_page
+        r.chapter == question["chapter"] and r.first_page <= page <= r.last_page
         for r in results
         for page in question["pages"]
     )
@@ -76,13 +76,13 @@ def main() -> None:
 
     settings = Settings.from_env()
     embedder = OnnxEmbedder(settings.embed_model)
-    store = VectorStore(settings.store_dir)
+    index = Index.load(settings.index_dir)
 
     def find(query: str) -> list[Result]:
-        return find_pages(query, embedder, store, settings.min_score)
+        return find_pages(query, embedder, index)
 
     table = format_table(evaluate(load_questions(), find))
-    header = f"Model {settings.embed_model}, MIN_SCORE {settings.min_score}\n\n"
+    header = f"Model {settings.embed_model}, MIN_SCORE {MIN_SCORE}\n\n"
     print(header + table)
     if args.out:
         args.out.write_text(header + table + "\n", encoding="utf-8")

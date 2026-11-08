@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.ingest import Page, clean_title, extract_pages, load_documents
+from app.ingest import chapter_name, clean_title, extract_pages, load_documents
 
 
 def make_pdf(path, pages):
@@ -90,7 +90,7 @@ def test_load_documents_reads_all_pdfs_sorted(tmp_path):
 
     pages = load_documents(tmp_path)
 
-    assert [(p.source, p.title) for p in pages] == [("a.pdf", "from a"), ("b.pdf", "from b")]
+    assert [(p.chapter, p.title) for p in pages] == [("a", "from a"), ("b", "from b")]
 
 
 def test_load_documents_missing_folder_raises(tmp_path):
@@ -98,7 +98,14 @@ def test_load_documents_missing_folder_raises(tmp_path):
         load_documents(tmp_path / "does-not-exist")
 
 
-def test_page_id_is_stable_and_unique():
-    a = Page("a.pdf", 1, "t", "x")
-    assert a.id == "a.pdf|1"
-    assert a.id != Page("a.pdf", 2, "t", "x").id
+def test_two_pdfs_with_the_same_short_name_are_refused(tmp_path):
+    make_pdf(tmp_path / "Chapter_1_(pdf)-111.pdf", [[(24, "one"), BODY]])
+    make_pdf(tmp_path / "Chapter_1_(pdf)-222.pdf", [[(24, "two"), BODY]])
+
+    with pytest.raises(ValueError, match="both be called 'Chapter 1'"):
+        load_documents(tmp_path)
+
+
+def test_chapter_name_shortens_course_downloads():
+    assert chapter_name("Chapter_3_(pdf)-1045785-17255919550481.pdf") == "Chapter 3"
+    assert chapter_name("Lecture 01.pdf") == "Lecture 01"

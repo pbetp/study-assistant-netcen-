@@ -2,13 +2,6 @@
 # Your PDF slides live here. Keep this line at the top.
 data/
 
-# ---- Vector store ----
-# The index contains the slide text, so it is derived from copyrighted
-# material and must not be committed either.
-chroma_db/
-*.faiss
-*.pkl
-
 # ---- Secrets ----
 # API keys go in .env (local only). .env.example is safe to commit.
 .env
@@ -31,3 +24,6 @@ Thumbs.db
 
 # Model downloads (embedding model cache)
 .cache/
+
+# Note: site/index/ (titles, page numbers and vectors, no slide text) is committed on purpose,
+# because the web page reads it.
